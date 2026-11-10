@@ -2,7 +2,10 @@
  "comp": "VZ01-Silent",
  "audio": "public/vz01/mix-norm.wav",
  "name": "vz01-final",
- "at": "2026-11-10T22:27:18.045Z",
+ "at": "2026-11-10T22:29:55.102Z",
  "gl": "swangle",
- "chunks": 20
+ "chunks": 20,
+ "height": 1440,
+ "crf": 25,
+ "tune": "animation"
 }
