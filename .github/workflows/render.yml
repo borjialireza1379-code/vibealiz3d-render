@@ -1,0 +1,108 @@
+# Renders the video named in render.json whenever render.json changes (or by hand from the Actions tab).
+# render.json: comp, audio, name, optional gl ("swangle" for 3D: the runners have no GPU) and optional chunks
+# (N parallel jobs, each renders 1/N of the frames). The last job joins the parts, muxes the mix, encodes small
+# (x264 slow CRF 27 + AAC 128k) and uploads final.mp4 + the timing as the artifact <name>.
+name: render
+on:
+  push:
+    paths: [render.json]
+  workflow_dispatch:
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      parts: ${{ steps.p.outputs.parts }}
+      chunks: ${{ steps.p.outputs.chunks }}
+      comp: ${{ steps.p.outputs.comp }}
+      audio: ${{ steps.p.outputs.audio }}
+      name: ${{ steps.p.outputs.name }}
+      gl: ${{ steps.p.outputs.gl }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: p
+        run: |
+          N=$(node -p "require('./render.json').chunks || 1")
+          echo "chunks=$N" >> "$GITHUB_OUTPUT"
+          echo "parts=$(node -p "JSON.stringify([...Array($N).keys()])")" >> "$GITHUB_OUTPUT"
+          echo "comp=$(node -p "require('./render.json').comp")" >> "$GITHUB_OUTPUT"
+          echo "audio=$(node -p "require('./render.json').audio")" >> "$GITHUB_OUTPUT"
+          echo "name=$(node -p "require('./render.json').name")" >> "$GITHUB_OUTPUT"
+          echo "gl=$(node -p "require('./render.json').gl || ''")" >> "$GITHUB_OUTPUT"
+
+  render:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: true
+      matrix:
+        part: ${{ fromJson(needs.plan.outputs.parts) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Render part (timed)
+        run: |
+          COMP="${{ needs.plan.outputs.comp }}"
+          N=${{ needs.plan.outputs.chunks }}
+          P=${{ matrix.part }}
+          GL="${{ needs.plan.outputs.gl }}"
+          # (no --log=error here: it also hides the composition table)
+          LIST=$(npx remotion compositions src/index.ts 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
+          TOTAL=$(echo "$LIST" | awk -v c="$COMP" '$1==c {print $4}')
+          if [ -z "$TOTAL" ]; then echo "could not read the frame count of $COMP:"; echo "$LIST"; exit 1; fi
+          A=$(( P * TOTAL / N ))
+          B=$(( (P + 1) * TOTAL / N - 1 ))
+          echo "part $P/$N: frames $A-$B of $TOTAL · cores: $(nproc)"
+          mkdir -p out
+          START=$(date +%s)
+          npx remotion render src/index.ts "$COMP" out/part-$(printf %03d $P).mp4 --frames=$A-$B --concurrency=100% --log=error --timeout=240000 ${GL:+--gl=$GL}
+          SECS=$(( $(date +%s) - START ))
+          FR=$(( B - A + 1 ))
+          echo "part $P: $FR frames in ${SECS}s on $(nproc) cores ($(node -p "($FR/$SECS).toFixed(2)") frames/s)" | tee out/timing-$(printf %03d $P).txt
+          cat out/timing-*.txt >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: part-${{ matrix.part }}
+          path: out/
+          retention-days: 1
+
+  join:
+    needs: [plan, render]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install
+        run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: part-*
+          path: out
+          merge-multiple: true
+      - name: Join, mux audio + small encode
+        run: |
+          cd out
+          ls part-*.mp4 | sort | sed "s/^/file '/; s/$/'/" > list.txt
+          npx remotion ffmpeg -v error -y -f concat -safe 0 -i list.txt -c copy silent.mp4
+          npx remotion ffmpeg -v error -y -i silent.mp4 -i "../${{ needs.plan.outputs.audio }}" -map 0:v -map 1:a \
+            -c:v libx264 -preset slow -crf 27 -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k -shortest final.mp4
+          cat timing-*.txt > timing.txt
+          echo "### ${{ needs.plan.outputs.name }}" >> "$GITHUB_STEP_SUMMARY"
+          cat timing.txt >> "$GITHUB_STEP_SUMMARY"
+          ls -la
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.plan.outputs.name }}
+          path: |
+            out/final.mp4
+            out/timing.txt
+          retention-days: 14
