@@ -230,15 +230,21 @@ const TETRO: [number, number][][] = [
 ];
 
 // ─────────────── camera + look
-const Rig: React.FC<{ t: number }> = ({ t }) => {
+const Rig: React.FC<{ t: number; vertical?: boolean }> = ({ t, vertical }) => {
   const camera = useThree((s) => s.camera);
   useLayoutEffect(() => {
     const c = trackAt(t);
     const outro = interpolate(t, [FINAL_HIT.t, FINAL_HIT.t + 6], [0, 1], clamp01);
     const kick = t > CTA_HIT.t ? 0.06 * Math.exp(-(t - CTA_HIT.t) / 0.12) * Math.sin((t - CTA_HIT.t) * 70) : 0;
+    if (vertical) {
+      // Shorts (9:16): closer to the ball, looking straight at it
+      camera.position.set(c.x - 0.9 + 0.3 * Math.sin(t * 0.33), c.y + 1.9 + 0.12 * Math.sin(t * 0.47) + kick, 7.0);
+      camera.lookAt(c.x + 0.55, c.y - 0.15, 0);
+      return;
+    }
     camera.position.set(c.x - 2.3 + 0.5 * Math.sin(t * 0.33) + 0.6 * outro, c.y + 1.8 + 0.15 * Math.sin(t * 0.47) + kick + 0.5 * outro, 7.2 - 0.5 * outro);
     camera.lookAt(c.x + 1.3 - 3.1 * outro, c.y - 0.3 + 1.55 * outro, 0);
-  }, [camera, t]);
+  }, [camera, t, vertical]);
   return null;
 };
 
@@ -586,7 +592,7 @@ const DECOR = Array.from({ length: Math.ceil((FINAL_HIT.x + 22) / 0.85) }, (_, n
   };
 });
 
-const Scene: React.FC<{ t: number }> = ({ t }) => {
+export const Scene: React.FC<{ t: number; vertical?: boolean }> = ({ t, vertical }) => {
   const c = trackAt(t);
   const target = useMemo(() => new THREE.Object3D(), []);
   target.position.set(c.x, c.y, 0);
@@ -597,7 +603,7 @@ const Scene: React.FC<{ t: number }> = ({ t }) => {
   const near = (x: number, r: number) => Math.abs(x - c.x) < r;
   return (
     <>
-      <Rig t={t} />
+      <Rig t={t} vertical={vertical} />
       <Look />
       <hemisphereLight args={["#f7f8fb", "#b9b4c4", 0.55]} />
       <primitive object={target} />

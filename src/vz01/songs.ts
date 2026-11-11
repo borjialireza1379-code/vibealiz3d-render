@@ -174,3 +174,25 @@ export const { HITS, SPANS, CTA_HIT, FINAL_HIT, DURATION } = (() => {
 })();
 
 export const FRAMES = Math.round(DURATION * FPS);
+
+// ─────────────── Shorts (9:16): three shorts of 3 songs each, rendered back to back in one composition, split later
+export const SHORT_SETS = [
+  [0, 2, 11], // Nokia · Tetris · Rickroll
+  [1, 6, 9], // Megalovania · Mario · Pink Panther
+  [3, 5, 10], // La Cucaracha · Mountain King · Für Elise
+];
+export const SHORT_PRE = 0.6; // seconds before a song's first note (the hop into its world)
+export const SHORT_POST = 1.0; // after its last note
+export const SHORT_END = 2.8; // end card; the last segment simply keeps playing under it
+export type ShortSeg = { song: number; from: number; to: number; at: number }; // at = start inside the short
+export const SHORTS = SHORT_SETS.map((set) => {
+  let t = 0;
+  const segs: ShortSeg[] = set.map((k) => {
+    const s = { song: k, from: SPANS[k].start - SHORT_PRE, to: SPANS[k].end + SHORT_POST, at: t };
+    t += s.to - s.from;
+    return s;
+  });
+  return { segs, len: Math.round((t + SHORT_END) * FPS) / FPS };
+});
+export const SHORT_STARTS = SHORTS.map((_, i) => SHORTS.slice(0, i).reduce((a, s) => a + s.len, 0));
+export const SHORTS_FRAMES = Math.round(SHORTS.reduce((a, s) => a + s.len, 0) * FPS);
