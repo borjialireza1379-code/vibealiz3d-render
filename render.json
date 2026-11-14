@@ -1,10 +1,10 @@
 {
- "comp": "VZ01SHORTS-Silent",
- "audio": "public/vz01/shorts-mix.wav",
- "name": "vz01-shorts",
- "at": "2026-11-11T10:44:45.441Z",
+ "comp": "V43-Silent",
+ "audio": "public/v43/mix-norm.wav",
+ "name": "v43-final",
+ "at": "2026-11-14T16:53:39.349Z",
  "gl": "swangle",
  "chunks": 20,
- "crf": 25,
+ "crf": 24,
  "tune": "animation"
 }
