@@ -263,7 +263,8 @@ const Ball: React.FC<{ p: V3; q: THREE.Quaternion }> = ({ p, q }) => (
   <group position={[p[0], p[1], p[2]]} quaternion={q}>
     <mesh castShadow>
       <sphereGeometry args={[BALL_R, 48, 32]} />
-      <meshPhysicalMaterial color="#d9d4de" roughness={0.32} clearcoat={0.6} clearcoatRoughness={0.2} />
+      {/* the user's colour for this video (stands out on the purple and the pearl dish); satin, no glow */}
+      <meshPhysicalMaterial color="#34cc9a" roughness={0.32} clearcoat={0.6} clearcoatRoughness={0.2} />
     </mesh>
     <mesh rotation={[Math.PI / 2, 0, 0]}>
       <torusGeometry args={[BALL_R * 0.995, BALL_R * 0.17, 16, 64]} />
@@ -306,11 +307,14 @@ export const Scene: React.FC<{ t: number; silent?: boolean }> = ({ t, silent }) 
   );
 };
 
-/** the loop: 7 s, starts and ends at the landing in the dish */
+/** the video starts with the ball at the top of the rails (the user's wish: speed first), on a whole frame; the
+ * timeline itself still starts at the landing, so the loop is just read from a later point. make-audio shifts the
+ * sound by the same amount. */
+export const START = Math.floor(T_RAILS * FPS) / FPS;
 export const FunnelLoop: React.FC<{ silent?: boolean }> = ({ silent }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  return <Scene t={frame / fps} silent={silent} />;
+  return <Scene t={(frame / fps + START) % DURATION} silent={silent} />;
 };
 
 // check moments: landing, dish close-up, late spiral, over the hole, on the rails, the ramp, the throw, last frame
