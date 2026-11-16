@@ -85,8 +85,8 @@ const Studio: React.FC = () => {
     scene.environmentIntensity = 0.55;
   }, [gl, scene]);
   useLayoutEffect(() => {
-    camera.position.set(4.05, 4.85, 8.5);
-    camera.lookAt(-0.12, 1.9, 0.3);
+    camera.position.set(3.22, 9.6, 6.3); // high: the viewer looks down into the tray and its hole
+    camera.lookAt(0.12, 2.1, 0.25);
   }, [camera]);
   return null;
 };
@@ -224,7 +224,7 @@ export const VZMachine: React.FC<{ silent?: boolean; at?: number }> = ({ silent,
   const t = at ?? frame / fps;
   return (
     <AbsoluteFill style={{ background: BG }}>
-      <ThreeCanvas width={width} height={height} shadows camera={{ fov: 33, near: 0.1, far: 60 }} gl={{ antialias: true }}>
+      <ThreeCanvas width={width} height={height} shadows camera={{ fov: 31, near: 0.1, far: 60 }} gl={{ antialias: true }}>
         <Studio />
         <hemisphereLight args={["#ffffff", "#8a8299", 0.6]} />
         <spotLight castShadow position={[-3.5, 9, 4.5]} angle={0.45} penumbra={0.9} intensity={110} decay={2} color="#fff3e6" shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-radius={6} />
@@ -240,7 +240,7 @@ export const VZMachine: React.FC<{ silent?: boolean; at?: number }> = ({ silent,
         <Machine t={t} />
         <Ball t={t} />
       </ThreeCanvas>
-      <div style={{ position: "absolute", right: 44, bottom: 300, fontFamily: FONT, fontWeight: 600, fontSize: 34, color: "#ffffffb0", letterSpacing: 1 }}>@Vibealiz3D</div>
+      <div style={{ position: "absolute", left: 0, right: 0, top: 250, textAlign: "center", fontFamily: FONT, fontWeight: 600, fontSize: 34, color: "#ffffffb0", letterSpacing: 1 }}>@Vibealiz3D</div>
       {!silent && at === undefined && <Html5Audio src={staticFile("vzmachine/machine.wav")} />}
     </AbsoluteFill>
   );
