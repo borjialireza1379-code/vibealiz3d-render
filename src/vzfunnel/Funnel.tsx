@@ -22,7 +22,7 @@ const CANDY = ["#ff4fb8", "#ffd23f", "#3fd6ff", "#3ddc97", "#ff9f2e", "#c86bff",
 const v3 = (p: number[]) => new THREE.Vector3(p[0], p[1], p[2]);
 
 // ─── camera: high three-quarter view like the reference (funnel top-left, ramp right, base running at us)
-export const CAM = { pos: new THREE.Vector3(5.2, 8.2, 8.6), look: new THREE.Vector3(-0.25, 1.75, 0.15), fov: 30 };
+export const CAM = { pos: new THREE.Vector3(4.9, 9.9, 8.0), look: new THREE.Vector3(-0.3, 1.7, 0.1), fov: 30 };
 
 const Studio: React.FC<{ pos: THREE.Vector3; look: THREE.Vector3 }> = ({ pos, look }) => {
   const { gl, scene, camera } = useThree();
@@ -74,7 +74,7 @@ const BASE_TRIM = (() => {
 
 // funnel ring: a lathe of a rounded rectangle (r: rIn..rOut, y: yBot..yLip)
 const RING_GEO = (() => {
-  const { rIn, rOut, yBot, yLip } = FUNNEL, c = 0.07, pts: THREE.Vector2[] = [];
+  const { rIn, rOut, yBot, yLip } = FUNNEL, c = 0.11, pts: THREE.Vector2[] = [];
   const arc = (cx: number, cy: number, a0: number) => {
     for (let i = 0; i <= 8; i++) {
       const a = ((a0 + (i / 8) * 90) * Math.PI) / 180;
@@ -110,7 +110,9 @@ const TIES = Array.from({ length: LIGHTS }, (_, i) => {
   const m = trackAt(lightS(i));
   const b = v3(side(m)), n = v3(m.n), c = v3(m.p).addScaledVector(n, -(RAIL_D + 0.03));
   const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b);
-  const beads = [-1, 1].map((w) => c.clone().addScaledVector(b, w * (RAIL_W + 0.075)));
+  // one note-light per tie, on the end that faces the camera
+  const w = Math.sign(b.dot(CAM.pos.clone().sub(c))) || 1;
+  const beads = [c.clone().addScaledVector(b, w * (RAIL_W + 0.075))];
   const post = m.seg === "run" || (m.seg === "ramp" && c.y < BASE_TOP + 0.35) || (m.seg === "bend" && c.y < BASE_TOP + 0.35);
   return { c, q, beads, post };
 });
@@ -135,11 +137,7 @@ const Funnel: React.FC = () => (
       <Glossy c={PURPLE} rough={0.3} />
     </mesh>
     <mesh position={[0, FUNNEL.yLip + 0.004, 0]} rotation={[Math.PI / 2, 0, 0]}>
-      <torusGeometry args={[(FUNNEL.rIn + FUNNEL.rOut) / 2, 0.026, 16, 160]} />
-      <Glossy c={GOLD} metal={1} rough={0.2} />
-    </mesh>
-    <mesh position={[0, FUNNEL.yBot + 0.07, 0]} rotation={[Math.PI / 2, 0, 0]}>
-      <torusGeometry args={[FUNNEL.rOut + 0.006, 0.022, 12, 160]} />
+      <torusGeometry args={[(FUNNEL.rIn + FUNNEL.rOut) / 2, 0.028, 16, 160]} />
       <Glossy c={GOLD} metal={1} rough={0.2} />
     </mesh>
     <mesh geometry={DISH_GEO} receiveShadow>
@@ -213,12 +211,12 @@ const Track: React.FC<{ lit: number; fade?: number }> = ({ lit, fade = 0 }) => (
             </mesh>
           )}
           {beads.map((p, k) => {
-            const col = new THREE.Color(CANDY[(i * 2 + k) % CANDY.length]);
-            const shown = col.clone().lerp(new THREE.Color("#ffffff"), 0.35).lerp(col, on);
+            const col = new THREE.Color(CANDY[(i + k) % CANDY.length]);
+            const shown = col.clone().lerp(new THREE.Color("#ffffff"), 0.45).lerp(col, on);
             return (
-              <mesh key={k} position={p} scale={0.032 + on * (0.018 + 0.022 * flash)}>
+              <mesh key={k} position={p} scale={0.03 + on * (0.014 + 0.016 * flash)}>
                 <sphereGeometry args={[1, 16, 12]} />
-                <meshPhysicalMaterial color={shown} roughness={0.3} clearcoat={1} emissive={col} emissiveIntensity={on * (2.2 + 3.5 * flash)} />
+                <meshPhysicalMaterial color={shown} roughness={0.3} clearcoat={1} emissive={col} emissiveIntensity={on * (0.8 + 1.6 * flash)} />
               </mesh>
             );
           })}
@@ -276,7 +274,7 @@ export const Scene: React.FC<{ ball: V3; lit: number; fade?: number; spin?: numb
 // ─── look moments (one frame each)
 export const LOOK: { ball: V3; lit: number; fade?: number; spin?: number }[] = [
   // 0 · hero: the ball just left the ramp and arcs back to the funnel; every note-light on
-  { ball: flightAt(T_FLIGHT * 0.33), lit: TRACK_LEN + 0.5, spin: 2.1 },
+  { ball: flightAt(T_FLIGHT * 0.25), lit: TRACK_LEN + 0.4, spin: 2.1 },
   // 1 · spiralling in the dish, lights going out
   { ball: onDish(0.4, 2.3), lit: TRACK_LEN + 9, fade: 0.55, spin: 0.8 },
   // 2 · climbing the ramp, the lights behind it fresh

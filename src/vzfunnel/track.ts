@@ -8,15 +8,16 @@ export const BALL_R = 0.125;
 export const G = 40; // gentle slow motion (same as the first machine)
 
 // ─── base: rounded slab
-export const BASE = { x0: -1.95, x1: 1.85, z0: -0.95, z1: 1.2, r: 0.3, h: 0.35, bevel: 0.05 };
+export const BASE = { x0: -2.0, x1: 1.85, z0: -0.72, z1: 1.0, r: 0.3, h: 0.35, bevel: 0.05 };
 export const BASE_TOP = BASE.h + 2 * BASE.bevel; // the slab is lifted so its bevelled bottom sits on the floor
 
-// ─── funnel (a gravity well: flat near the wall, steep near the hole)
-export const FUNNEL = { cx: -1.05, cz: 0, rOut: 1.02, rIn: 0.86, yBot: 2.55, yLip: 3.28, ySurf: 3.14, hole: 0.17, depth: 0.46 };
-const A = FUNNEL.depth / (1 / FUNNEL.hole - 1 / FUNNEL.rIn);
-export const surfY = (r: number) => FUNNEL.ySurf - A * (1 / Math.max(r, FUNNEL.hole) - 1 / FUNNEL.rIn);
-export const surfSlope = (r: number) => A / (r * r); // dy/dr
-export const RING_R = 0.52; // the gold groove on the dish
+// ─── funnel: a chunky rounded ring round a trumpet-shaped dish (flat at the wall, steeper towards the hole, but
+// never steeper than the camera looks down, so the hole stays visible)
+export const FUNNEL = { cx: -1.05, cz: 0, rOut: 1.08, rIn: 0.84, yBot: 2.72, yLip: 3.28, ySurf: 3.15, hole: 0.19, depth: 0.27, power: 1.45 };
+const SPAN = FUNNEL.rIn - FUNNEL.hole;
+export const surfY = (r: number) => FUNNEL.ySurf - FUNNEL.depth * (Math.min(Math.max(FUNNEL.rIn - r, 0), SPAN) / SPAN) ** FUNNEL.power;
+export const surfSlope = (r: number) => ((FUNNEL.depth * FUNNEL.power) / SPAN) * (Math.min(Math.max(FUNNEL.rIn - r, 0), SPAN) / SPAN) ** (FUNNEL.power - 1); // dy/dr
+export const RING_R = 0.5; // the gold groove on the dish
 /** ball centre resting on the dish at radius r, angle a (0 = +x, π/2 = +z) */
 export const onDish = (r: number, a: number): V3 => {
   const k = surfSlope(r), n = Math.hypot(1, k);
@@ -25,45 +26,55 @@ export const onDish = (r: number, a: number): V3 => {
 };
 
 // ─── pillars under the funnel ring (behind the rails)
-export const PILLARS: [number, number][] = [140, 222].map((d) => {
+export const PILLARS: [number, number][] = [150, 212].map((d) => {
   const a = (d * Math.PI) / 180;
   return [FUNNEL.cx + Math.cos(a) * 0.8, FUNNEL.cz + Math.sin(a) * 0.8];
 });
 
-// ─── the ball's path on the rails: drop → bend → sweep (with a sideways S) → J-ramp
-// Every sample carries T (tangent) and N (support normal: from the rails towards the ball centre).
+// ─── the ball's path on the rails: drop → bend → one sideways sweep → J-ramp (one clean curve, like the reference)
+// The drop and the bend lie in a vertical plane turned by PSI0 towards +z; the sweep then eases back to +x, so in
+// plan view the whole track is a single arc. Every sample carries T (tangent) and N (support normal: from the rails
+// towards the ball centre).
 const Y_TOP = FUNNEL.yBot - 0.02; // rails start just under the funnel
 const RB = 0.72; // bend radius
 const Y_RUN = BASE_TOP + 0.24; // ball centre height on the low run
 const Y_BEND = Y_RUN + RB;
-const X_RUN0 = FUNNEL.cx + RB;
-export const X_J = 0.95;
-export const Z_J = 0.69; // the ramp's plane: the flight lands tangentially on the dish at this radius (clear of the wall)
-const RJ = 0.46;
+export const X_J = 0.92;
+export const Z_J = 0.66; // the ramp's plane: the flight lands tangentially on the dish at this radius (clear of the wall)
+const RJ = 0.55;
 export const J_END = (110 * Math.PI) / 180; // the ramp curls past vertical: the ball leaves going up and back
+// heading of the drop/bend plane: the sweep z(k) = zb + (Z_J − zb)(1 − (1 − k)²) must start along it
+const PSI0 = (() => {
+  let p = 0.4;
+  for (let k = 0; k < 40; k++) {
+    const xb = FUNNEL.cx + RB * Math.cos(p), zb = FUNNEL.cz + RB * Math.sin(p);
+    p = Math.atan((2 * (Z_J - zb)) / (X_J - xb));
+  }
+  return p;
+})();
+const H0: V3 = [Math.cos(PSI0), 0, Math.sin(PSI0)];
+const XB = FUNNEL.cx + RB * H0[0], ZB = FUNNEL.cz + RB * H0[2];
 
-const smooth = (k: number) => k * k * (3 - 2 * k);
-const dsmooth = (k: number) => 6 * k * (1 - k);
 type Sample = { p: V3; t: V3; n: V3 };
 const norm = (v: V3): V3 => {
   const l = Math.hypot(v[0], v[1], v[2]);
   return [v[0] / l, v[1] / l, v[2] / l];
 };
 
-const drop = (k: number): Sample => ({ p: [FUNNEL.cx, Y_TOP + (Y_BEND - Y_TOP) * k, FUNNEL.cz], t: [0, -1, 0], n: [1, 0, 0] });
+const drop = (k: number): Sample => ({ p: [FUNNEL.cx, Y_TOP + (Y_BEND - Y_TOP) * k, FUNNEL.cz], t: [0, -1, 0], n: H0 });
 const bend = (k: number): Sample => {
-  const th = (k * Math.PI) / 2;
+  const th = (k * Math.PI) / 2, out = RB * (1 - Math.cos(th));
   return {
-    p: [X_RUN0 - RB * Math.cos(th), Y_BEND - RB * Math.sin(th), FUNNEL.cz],
-    t: [Math.sin(th), -Math.cos(th), 0],
-    n: [Math.cos(th), Math.sin(th), 0],
+    p: [FUNNEL.cx + H0[0] * out, Y_BEND - RB * Math.sin(th), FUNNEL.cz + H0[2] * out],
+    t: [H0[0] * Math.sin(th), -Math.cos(th), H0[2] * Math.sin(th)],
+    n: [H0[0] * Math.cos(th), Math.sin(th), H0[2] * Math.cos(th)],
   };
 };
 const run = (k: number): Sample => {
-  const L = X_J - X_RUN0;
+  const L = X_J - XB, D = Z_J - ZB;
   return {
-    p: [X_RUN0 + L * k, Y_RUN, FUNNEL.cz + (Z_J - FUNNEL.cz) * smooth(k)],
-    t: norm([L, 0, (Z_J - FUNNEL.cz) * dsmooth(k)]),
+    p: [XB + L * k, Y_RUN, ZB + D * (1 - (1 - k) ** 2)],
+    t: norm([L, 0, 2 * D * (1 - k)]),
     n: [0, 1, 0],
   };
 };
