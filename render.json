@@ -1,10 +1,8 @@
 {
- "comp": "VZMACHINE-Silent",
- "audio": "public/vzmachine/machine.wav",
- "name": "vzmachine-final",
- "at": "2026-11-16T02:17:51.076Z",
+ "comp": "VZFUNNELLOOK-Silent",
+ "audio": "public/vzfunnel/silence.wav",
+ "name": "vzfunnel-look",
+ "at": "2026-11-16T02:47:03.703Z",
  "gl": "swangle",
- "chunks": 20,
- "crf": 23,
- "tune": "animation"
+ "crf": 10
 }
