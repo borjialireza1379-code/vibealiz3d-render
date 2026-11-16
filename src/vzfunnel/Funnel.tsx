@@ -264,7 +264,7 @@ const Ball: React.FC<{ p: V3; q: THREE.Quaternion }> = ({ p, q }) => (
     <mesh castShadow>
       <sphereGeometry args={[BALL_R, 48, 32]} />
       {/* the user's colour for this video (stands out on the purple and the pearl dish); satin, no glow */}
-      <meshPhysicalMaterial color="#34cc9a" roughness={0.32} clearcoat={0.6} clearcoatRoughness={0.2} />
+      <meshPhysicalMaterial color="#ccb234" roughness={0.32} clearcoat={0.6} clearcoatRoughness={0.2} />
     </mesh>
     <mesh rotation={[Math.PI / 2, 0, 0]}>
       <torusGeometry args={[BALL_R * 0.995, BALL_R * 0.17, 16, 64]} />
@@ -310,7 +310,8 @@ export const Scene: React.FC<{ t: number; silent?: boolean }> = ({ t, silent }) 
 /** the video starts with the ball at the top of the rails (the user's wish: speed first), on a whole frame; the
  * timeline itself still starts at the landing, so the loop is just read from a later point. make-audio shifts the
  * sound by the same amount. */
-export const START = Math.floor(T_RAILS * FPS) / FPS;
+// + 8 frames: the funnel hides the top of the rails from this camera; this is the first frame the ball shows under it
+export const START = (Math.floor(T_RAILS * FPS) + 8) / FPS;
 export const FunnelLoop: React.FC<{ silent?: boolean }> = ({ silent }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
