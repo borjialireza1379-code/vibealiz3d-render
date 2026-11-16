@@ -1,16 +1,16 @@
 // Vibealiz3D vortex-funnel marble machine (1080×1920, 60 fps). Same look as the first machine (src/vzmachine):
 // deep purple + gold, a grey-lavender studio, the channel ball (satin off-white, purple ring), candy note-lights
 // that light up as the ball passes, no channel name on the object. Geometry and the ball path: track.ts.
-// For now only look stills (VZFUNNELLOOK: one frame per moment); the timed loop comes after the user approves the look.
+// Loop: VZFUNNEL (7 s, seamless), check stills: VZFUNNELLOOK (one frame per moment in LOOK_T). Sound: make-audio.mjs.
 import { ThreeCanvas } from "@remotion/three";
 import { useThree } from "@react-three/fiber";
 import React, { useLayoutEffect, useMemo } from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Html5Audio, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import {
-  BALL_R, BASE, BASE_TOP, FUNNEL, LIGHTS, PILLARS, RAIL_D, RAIL_R, RAIL_W, RING_R, T_FLIGHT, TRACK_LEN, V3,
-  flightAt, lightS, onDish, railPoint, side, surfY, trackAt,
+  BALL_R, BASE, BASE_TOP, DURATION, FPS, FRAMES, FUNNEL, LIGHTS, PILLARS, RAIL_D, RAIL_R, RAIL_W, RING_R, T_DISH,
+  T_FLIGHT, T_LAUNCH, T_RAILS, T_TRACK, TRACK_LEN, V3, ballAt, lightS, lightState, railPoint, side, surfY, trackAt,
 } from "./track";
 
 const BG = "#9c98a8";
@@ -185,8 +185,7 @@ const Pillars: React.FC = () => (
   </>
 );
 
-/** lit: arc length the ball has passed (lights behind it are on); fade: 0..1 all lights going off */
-const Track: React.FC<{ lit: number; fade?: number }> = ({ lit, fade = 0 }) => (
+const Track: React.FC<{ t: number }> = ({ t }) => (
   <>
     {RAIL_GEO.map((g, i) => (
       <mesh key={i} geometry={g} castShadow>
@@ -200,9 +199,7 @@ const Track: React.FC<{ lit: number; fade?: number }> = ({ lit, fade = 0 }) => (
       </mesh>
     ))}
     {TIES.map(({ c, q, beads, post }, i) => {
-      const passed = lit - lightS(i);
-      const on = passed >= 0 ? 1 - fade : 0;
-      const flash = passed >= 0 ? Math.exp(-passed / 0.5) : 0;
+      const { on, flash } = lightState(i, t);
       return (
         <group key={i}>
           <mesh position={c} quaternion={q} castShadow>
@@ -231,8 +228,39 @@ const Track: React.FC<{ lit: number; fade?: number }> = ({ lit, fade = 0 }) => (
   </>
 );
 
-const Ball: React.FC<{ p: V3; spin?: number }> = ({ p, spin = 0 }) => (
-  <group position={[p[0], p[1], p[2]]} rotation={[0.5 + spin, 0.3, -0.35 + spin * 0.6]}>
+// ─── ball spin: rolling without slipping (ω = n × v / R) on the dish and the rails, kept in the air; the loop must end
+// in the start orientation, so the leftover rotation is eased out over the calm part of the spiral
+const SPIN = (() => {
+  const steps = Math.ceil(DURATION * 240), dt = DURATION / steps;
+  const out: THREE.Quaternion[] = [];
+  let q = new THREE.Quaternion(), w = new THREE.Vector3();
+  for (let k = 0; k <= steps; k++) {
+    out.push(q.clone());
+    const a = ballAt(k * dt), b = ballAt(Math.min((k + 1) * dt, DURATION - 1e-6));
+    const vel = v3(b.p).sub(v3(a.p)).divideScalar(dt);
+    if (a.n && vel.length() < 40) w = new THREE.Vector3().crossVectors(v3(a.n), vel).divideScalar(BALL_R);
+    const ang = w.length() * dt;
+    if (ang > 1e-9) q = new THREE.Quaternion().setFromAxisAngle(w.clone().normalize(), ang).multiply(q);
+  }
+  const fix = out[out.length - 1].clone().invert();
+  return out.map((qq, k) => new THREE.Quaternion().slerp(fix, THREE.MathUtils.smoothstep(k * dt, 0.6, T_DISH - 0.6)).multiply(qq));
+})();
+const spinAt = (t: number) => SPIN[Math.min(SPIN.length - 1, Math.round((t / DURATION) * (SPIN.length - 1)))];
+
+// ─── camera: the approved three-quarter pose; while the ball spirals it cranes in and up over the dish, and it is
+// back (and still) before the ball drops, so the run down the rails and the throw are seen whole. Same pose and no
+// motion at both ends of the loop.
+const CAM_IN = (() => {
+  const look = new THREE.Vector3(FUNNEL.cx + 0.05, 2.95, FUNNEL.cz + 0.05);
+  return { look, pos: look.clone().add(CAM.pos.clone().sub(CAM.look).multiplyScalar(0.64)).add(new THREE.Vector3(0, 0.6, 0)) };
+})();
+export const cameraAt = (t: number) => {
+  const w = THREE.MathUtils.smoothstep(t, 0.3, 2.2) * (1 - THREE.MathUtils.smoothstep(t, T_DISH - 1.5, T_DISH - 0.15));
+  return { pos: CAM.pos.clone().lerp(CAM_IN.pos, w), look: CAM.look.clone().lerp(CAM_IN.look, w) };
+};
+
+const Ball: React.FC<{ p: V3; q: THREE.Quaternion }> = ({ p, q }) => (
+  <group position={[p[0], p[1], p[2]]} quaternion={q}>
     <mesh castShadow>
       <sphereGeometry args={[BALL_R, 48, 32]} />
       <meshPhysicalMaterial color="#d9d4de" roughness={0.32} clearcoat={0.6} clearcoatRoughness={0.2} />
@@ -244,11 +272,12 @@ const Ball: React.FC<{ p: V3; spin?: number }> = ({ p, spin = 0 }) => (
   </group>
 );
 
-export const Scene: React.FC<{ ball: V3; lit: number; fade?: number; spin?: number; cam?: typeof CAM }> = ({ ball, lit, fade, spin, cam = CAM }) => {
+export const Scene: React.FC<{ t: number; silent?: boolean }> = ({ t, silent }) => {
   const { width, height } = useVideoConfig();
+  const cam = cameraAt(t);
   return (
     <AbsoluteFill style={{ background: BG }}>
-      <ThreeCanvas width={width} height={height} shadows camera={{ fov: cam.fov, near: 0.1, far: 80 }} gl={{ antialias: true }}>
+      <ThreeCanvas width={width} height={height} shadows camera={{ fov: CAM.fov, near: 0.1, far: 80 }} gl={{ antialias: true }}>
         <Studio pos={cam.pos} look={cam.look} />
         <hemisphereLight args={["#ffffff", "#8a8299", 0.6]} />
         <spotLight castShadow position={[-3.5, 9, 4.5]} angle={0.5} penumbra={0.9} intensity={115} decay={2} color="#fff3e6" shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-radius={6} />
@@ -269,30 +298,32 @@ export const Scene: React.FC<{ ball: V3; lit: number; fade?: number; spin?: numb
         </mesh>
         <Pillars />
         <Funnel />
-        <Track lit={lit} fade={fade} />
-        <Ball p={ball} spin={spin} />
+        <Track t={t} />
+        <Ball p={ballAt(t).p} q={spinAt(t)} />
       </ThreeCanvas>
+      {!silent && <Html5Audio src={staticFile("vzfunnel/funnel.wav")} />}
     </AbsoluteFill>
   );
 };
 
-// ─── look moments (one frame each)
-export const LOOK: { ball: V3; lit: number; fade?: number; spin?: number }[] = [
-  // 0 · hero: the ball just left the ramp and arcs back to the funnel; every note-light on
-  { ball: flightAt(T_FLIGHT * 0.25), lit: TRACK_LEN + 0.4, spin: 2.1 },
-  // 1 · spiralling in the dish, lights going out
-  { ball: onDish(0.4, 2.3), lit: TRACK_LEN + 9, fade: 0.55, spin: 0.8 },
-  // 2 · climbing the ramp, the lights behind it fresh
-  { ball: trackAt(TRACK_LEN - 0.45).p, lit: TRACK_LEN - 0.45, spin: 1.4 },
-];
-
-export const FunnelLook: React.FC<{ silent?: boolean }> = () => {
+/** the loop: 7 s, starts and ends at the landing in the dish */
+export const FunnelLoop: React.FC<{ silent?: boolean }> = ({ silent }) => {
   const frame = useCurrentFrame();
-  const m = LOOK[Math.min(frame, LOOK.length - 1)];
-  return <Scene {...m} />;
+  const { fps } = useVideoConfig();
+  return <Scene t={frame / fps} silent={silent} />;
 };
 
-// names the cloud sync expects (--file=Funnel --export=VZFUNNELLOOK)
+// check moments: landing, dish close-up, late spiral, over the hole, on the rails, the ramp, the throw, last frame
+export const LOOK_T = [0.05, 1.6, 3.6, 5.6, T_RAILS + 0.12, T_RAILS + T_TRACK * 0.85, T_LAUNCH + T_FLIGHT * 0.35, DURATION - 1 / FPS];
+export const FunnelLook: React.FC<{ silent?: boolean }> = () => {
+  const frame = useCurrentFrame();
+  return <Scene t={LOOK_T[Math.min(frame, LOOK_T.length - 1)]} silent />;
+};
+
+// names the cloud sync expects (--file=Funnel --export=VZFUNNEL / VZFUNNELLOOK)
+export const VZFUNNEL = FunnelLoop;
+export const VZFUNNEL_FPS = FPS;
+export const VZFUNNEL_FRAMES = FRAMES;
 export const VZFUNNELLOOK = FunnelLook;
-export const VZFUNNELLOOK_FPS = 60;
-export const VZFUNNELLOOK_FRAMES = LOOK.length;
+export const VZFUNNELLOOK_FPS = FPS;
+export const VZFUNNELLOOK_FRAMES = LOOK_T.length;

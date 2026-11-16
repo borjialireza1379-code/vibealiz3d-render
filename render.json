@@ -1,8 +1,10 @@
 {
- "comp": "VZFUNNELLOOK-Silent",
- "audio": "public/vzfunnel/silence.wav",
- "name": "vzfunnel-look4",
- "at": "2026-11-16T08:51:49.568Z",
+ "comp": "VZFUNNEL-Silent",
+ "audio": "public/vzfunnel/funnel.wav",
+ "name": "vzfunnel-loop",
+ "at": "2026-11-16T09:09:41.998Z",
  "gl": "swangle",
- "crf": 10
+ "chunks": 12,
+ "crf": 23,
+ "tune": "animation"
 }
