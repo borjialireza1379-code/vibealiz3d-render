@@ -152,6 +152,11 @@ const Funnel: React.FC = () => (
       <cylinderGeometry args={[FUNNEL.hole, FUNNEL.hole, THROAT_H, 48, 1, true]} />
       <meshStandardMaterial color="#2c2142" roughness={0.6} side={THREE.DoubleSide} />
     </mesh>
+    {/* invisible shadow caster over the hole: no bright spot of light through it on the floor */}
+    <mesh position={[0, FUNNEL.yBot - 0.01, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+      <circleGeometry args={[FUNNEL.hole + 0.02, 48]} />
+      <meshBasicMaterial colorWrite={false} depthWrite={false} side={THREE.DoubleSide} />
+    </mesh>
     <mesh position={[0, FUNNEL.yBot + 0.002, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
       <ringGeometry args={[FUNNEL.hole, FUNNEL.rIn + 0.05, 96]} />
       <Glossy c={PURPLE} rough={0.35} />
