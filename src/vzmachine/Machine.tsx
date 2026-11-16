@@ -1,87 +1,24 @@
-// Vibealiz3D "musical marble machine" (1080×1920, 60 fps, seamless ~12 s loop). The motion is in motion.ts (pure
-// physics, shared with make-audio.mjs); here: the purple/gold machine, the glass helix with its note-lights, the
-// spring launcher on the floor, the channel ball (white + purple ring) rolling without slipping, a grey-lavender
-// studio. The ball's spin is integrated from its path and eased back to the start orientation so the loop is seamless.
+// Vibealiz3D "musical marble machine" (1080×1920, 60 fps, seamless ~14 s loop). The motion is in motion.ts (pure
+// physics, shared with make-audio.mjs); here: the deep-purple/gold machine, the glass helix with its note-lights,
+// the spring launcher on the floor, the channel ball (soft white + purple ring) rolling without slipping, a
+// grey-lavender studio. The camera cranes: high over the tray, down alongside the ball through the glass, back up.
+// The ball's spin is integrated from its path and eased back to the start orientation so the loop is seamless.
 import { ThreeCanvas } from "@remotion/three";
 import { useThree } from "@react-three/fiber";
-import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { AbsoluteFill, Html5Audio, continueRender, delayRender, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import React, { useLayoutEffect, useMemo } from "react";
+import { AbsoluteFill, Html5Audio, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import {
   BALL_R, BASE_R, DURATION, FPS, FRAMES, HELIX, HOLE, HOUSING_H, LAUNCHER, LIGHTS, PLATE_TOP, TRAY_R, TRAY_Y,
-  T_BASE, T_SETTLE, ballAt, helixPoint, lightState, lightU, plateD,
+  T_BASE, T_HELIX, T_HOLE, T_SETTLE, ballAt, helixPoint, lightState, lightU, plateD,
 } from "./motion";
 
 export const MACHINE_FPS = FPS;
 export const MACHINE_FRAMES = FRAMES;
 
-const FONT = "Fredoka";
-const FONT_READY = new FontFace(FONT, `url('${staticFile("fonts/Fredoka.ttf")}')`, { weight: "300 700" }).load().then((f) => {
-  document.fonts.add(f);
-});
-
-// ─── the engraved name on the base wall: a height map of the text → normal map (lit edges), darker + matte inside
-const ENG_W = 4096, ENG_H = 192;
-const buildEngraving = () => {
-  const h = document.createElement("canvas");
-  h.width = ENG_W;
-  h.height = ENG_H;
-  const g = h.getContext("2d")!;
-  g.fillStyle = "#fff";
-  g.fillRect(0, 0, ENG_W, ENG_H);
-  g.filter = "blur(2.2px)"; // soft chamfer on the cut edges
-  g.fillStyle = "#000";
-  g.font = `700 140px ${FONT}`;
-  g.textAlign = "center";
-  g.textBaseline = "middle";
-  (g as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "10px";
-  g.fillText("Vibealiz3D", ENG_W / 2, ENG_H / 2 + 6);
-  const src = g.getImageData(0, 0, ENG_W, ENG_H).data;
-  const height = (x: number, y: number) => src[(Math.min(ENG_H - 1, Math.max(0, y)) * ENG_W + ((x + ENG_W) % ENG_W)) * 4] / 255;
-  const mk = () => {
-    const c = document.createElement("canvas");
-    c.width = ENG_W;
-    c.height = ENG_H;
-    return c;
-  };
-  const nC = mk(), cC = mk(), rC = mk();
-  const nD = nC.getContext("2d")!.createImageData(ENG_W, ENG_H);
-  const cD = cC.getContext("2d")!.createImageData(ENG_W, ENG_H);
-  const rD = rC.getContext("2d")!.createImageData(ENG_W, ENG_H);
-  const S = 3.2; // depth of the cut in the normal map
-  for (let y = 0; y < ENG_H; y++)
-    for (let x = 0; x < ENG_W; x++) {
-      const i = (y * ENG_W + x) * 4;
-      const gx = height(x + 1, y) - height(x - 1, y);
-      const gy = height(x, y + 1) - height(x, y - 1);
-      let nx = -gx * S, ny = gy * S; // canvas y points down, texture v points up
-      const l = Math.hypot(nx, ny, 1);
-      nx /= l;
-      ny /= l;
-      nD.data[i] = (nx * 0.5 + 0.5) * 255;
-      nD.data[i + 1] = (ny * 0.5 + 0.5) * 255;
-      nD.data[i + 2] = (0.5 / l + 0.5) * 255;
-      nD.data[i + 3] = 255;
-      const hv = height(x, y);
-      cD.data[i] = cD.data[i + 1] = cD.data[i + 2] = (0.62 + 0.38 * hv) * 255; // the floor of the letters is darker
-      cD.data[i + 3] = 255;
-      rD.data[i + 1] = (0.28 + 0.4 * (1 - hv)) * 255; // glossy surface, satin inside the letters (green = roughness)
-      rD.data[i + 3] = 255;
-    }
-  const tex = (c: HTMLCanvasElement, d: ImageData, srgb: boolean) => {
-    c.getContext("2d")!.putImageData(d, 0, 0);
-    const t = new THREE.CanvasTexture(c);
-    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = 8;
-    return t;
-  };
-  return { normal: tex(nC, nD, false), color: tex(cC, cD, true), rough: tex(rC, rD, false) };
-};
-const ENGRAVING = FONT_READY.then(buildEngraving);
-
 const BG = "#9c98a8";
-const PURPLE = "#8b4dff";
+const PURPLE = "#6a34cc"; // deep purple
 const GOLD = "#f2c14e";
 const CANDY = ["#ff4fb8", "#ffd23f", "#3fd6ff", "#3ddc97", "#ff9f2e", "#c86bff", "#ff5a4f"];
 const BASE_H = 0.4;
@@ -130,25 +67,39 @@ const SPIN = (() => {
 })();
 const spinAt = (t: number) => SPIN[Math.min(SPIN.length - 1, Math.round((t / DURATION) * (SPIN.length - 1)))];
 
-// camera: high, looking down into the tray; a slow swing (±11°) and rise/fall, one full cycle per loop = seamless
-const LOOK = new THREE.Vector3(0.12, 2.1, 0.25);
-const REL = new THREE.Vector3(3.1, 7.5, 6.05);
+// ─── camera crane: high over the tray (sees into it and its hole), down alongside the ball while it winds through
+// the glass (the target follows the ball's smoothed height), back up for the return and the launch. Same pose at
+// both ends of the loop and no motion there, so the loop stays seamless.
+const LOOK_HIGH = new THREE.Vector3(0.12, 2.1, 0.25);
+const REL_HIGH = new THREE.Vector3(3.1, 7.5, 6.05);
+const REL_LOW = new THREE.Vector3(3.9, 2.5, 7.6);
+const ballHeightSmooth = (t: number) => {
+  let y = 0;
+  for (let k = -6; k <= 6; k++) y += ballAt(THREE.MathUtils.clamp(t + k * 0.08, T_HELIX + 0.1, T_BASE)).p[1];
+  return y / 13;
+};
+const cameraAt = (t: number) => {
+  const down = THREE.MathUtils.smoothstep(t, T_HOLE - 0.6, T_HELIX + 0.9) * (1 - THREE.MathUtils.smoothstep(t, T_BASE - 0.7, T_BASE + 1.3));
+  const look = LOOK_HIGH.clone();
+  look.y = THREE.MathUtils.lerp(LOOK_HIGH.y, THREE.MathUtils.lerp(LOOK_HIGH.y, ballHeightSmooth(t), 0.75), down);
+  return { look, pos: look.clone().add(REL_HIGH.clone().lerp(REL_LOW, down)) };
+};
+
 const Studio: React.FC<{ t: number }> = ({ t }) => {
   const { gl, scene, camera } = useThree();
   useMemo(() => {
     gl.toneMapping = THREE.ACESFilmicToneMapping;
-    gl.toneMappingExposure = 1.05;
+    gl.toneMappingExposure = 1.0;
     gl.shadowMap.type = THREE.PCFSoftShadowMap;
     scene.background = new THREE.Color(BG);
     scene.fog = new THREE.Fog(BG, 10, 18);
     scene.environment = new THREE.PMREMGenerator(gl).fromScene(new RoomEnvironment(), 0.04).texture;
-    scene.environmentIntensity = 0.55;
+    scene.environmentIntensity = 0.5;
   }, [gl, scene]);
   useLayoutEffect(() => {
-    const ph = (t / DURATION) * Math.PI * 2;
-    const rel = REL.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(11) * Math.sin(ph));
-    camera.position.copy(LOOK).add(rel).add(new THREE.Vector3(0, 0.35 * Math.cos(ph), 0));
-    camera.lookAt(LOOK);
+    const { look, pos } = cameraAt(t);
+    camera.position.copy(pos);
+    camera.lookAt(look);
   }, [camera, t]);
   return null;
 };
@@ -185,26 +136,6 @@ const CONTACT = (() => {
   return new THREE.CanvasTexture(cv);
 })();
 
-// the wall of the base with the engraved name, centred on the camera's side (camera azimuth ≈ 63° → θ = 90° − 63°)
-const BaseWall: React.FC = () => {
-  const [tex, setTex] = useState<Awaited<typeof ENGRAVING> | null>(null);
-  const [handle] = useState(() => delayRender("engraving"));
-  useEffect(() => {
-    ENGRAVING.then((t) => {
-      setTex(t);
-      continueRender(handle);
-    });
-  }, [handle]);
-  if (!tex) return null;
-  const thetaFront = THREE.MathUtils.degToRad(90 - 63);
-  return (
-    <mesh position={[0, BASE_H / 2, 0]} receiveShadow>
-      <cylinderGeometry args={[BASE_R + 0.051, BASE_R + 0.051, BASE_H, 256, 1, true, thetaFront - Math.PI, Math.PI * 2]} />
-      <meshPhysicalMaterial color={PURPLE} map={tex.color} normalMap={tex.normal} roughness={1} roughnessMap={tex.rough} clearcoat={0.7} clearcoatRoughness={0.1} clearcoatNormalMap={tex.normal} />
-    </mesh>
-  );
-};
-
 const Launcher: React.FC<{ t: number }> = ({ t }) => {
   const d = plateD(t);
   return (
@@ -237,7 +168,6 @@ const Machine: React.FC<{ t: number }> = ({ t }) => (
     <mesh geometry={BASE} castShadow receiveShadow>
       <Glossy c={PURPLE} rough={0.3} />
     </mesh>
-    <BaseWall />
     <mesh position={[0, BASE_H + 0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
       <torusGeometry args={[BASE_R + 0.03, 0.035, 16, 128]} />
       <Glossy c={GOLD} metal={1} rough={0.2} />
@@ -284,19 +214,19 @@ const Machine: React.FC<{ t: number }> = ({ t }) => (
   </group>
 );
 
+// the channel ball: soft off-white with a satin finish (no glow), purple ring
 const Ball: React.FC<{ t: number }> = ({ t }) => {
   const { p } = ballAt(t);
   return (
     <group position={[p[0], p[1], p[2]]} quaternion={spinAt(t)}>
       <mesh castShadow>
         <sphereGeometry args={[BALL_R, 48, 32]} />
-        <meshPhysicalMaterial color="#fbf8f3" roughness={0.14} clearcoat={1} clearcoatRoughness={0.04} />
+        <meshPhysicalMaterial color="#d9d4de" roughness={0.32} clearcoat={0.6} clearcoatRoughness={0.2} />
       </mesh>
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[BALL_R * 0.995, BALL_R * 0.17, 16, 64]} />
-        <Glossy c="#a24bff" rough={0.3} glow={0.35} />
+        <Glossy c="#7a3fe0" rough={0.35} />
       </mesh>
-      <pointLight color="#c98bff" intensity={0.6} distance={0.9} decay={2} />
     </group>
   );
 };

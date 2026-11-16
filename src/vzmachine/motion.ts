@@ -64,7 +64,7 @@ export const T_LAUNCH = T_RELEASE + T_LIFT;
 const T_FLIGHT = 0.62;
 export const T_TRAY = T_LAUNCH + T_FLIGHT;
 const TRAY_BOUNCES = [0.1, 0.028, 0.007];
-const TRAY_DUR = 2.6;
+const TRAY_DUR = 3.8; // slow, calm laps on top
 export const T_HOLE = T_TRAY + TRAY_DUR;
 const LAUNCH_POS: V3 = [LAUNCHER[0], PLATE_TOP + BALL_R, LAUNCHER[1]];
 const TRAY_LAND_R = 0.7;
@@ -74,7 +74,7 @@ if (dTheta < Math.PI) dTheta += TAU; // at least one lap round the tray
 const HELIX_IN_Y = HELIX.y1 - (HELIX.tube - BALL_R);
 const T_DROP = Math.sqrt((2 * (TRAY_FLOOR + BALL_R - HELIX_IN_Y)) / G);
 export const T_HELIX = T_HOLE + T_DROP;
-const V_IN = 3.2, V_TERM = 4.6, V_TAU = 0.7;
+const V_IN = 2.6, V_TERM = 3.8, V_TAU = 0.7;
 const helixS = (s: number) => V_TERM * s - (V_TERM - V_IN) * V_TAU * (1 - Math.exp(-s / V_TAU));
 const helixV = (s: number) => V_TERM - (V_TERM - V_IN) * Math.exp(-s / V_TAU);
 const HELIX_DUR = (() => {
@@ -116,7 +116,7 @@ const bezAt = (dist: number) => {
   const k = (i - 1 + (dist - BZ_TABLE[i - 1]) / (BZ_TABLE[i] - BZ_TABLE[i - 1] || 1)) / (BZ_TABLE.length - 1);
   return bez(clamp(k));
 };
-const V_EXIT = helixV(HELIX_DUR) * 0.85, V_EDGE = 2.3; // rolling friction on the base
+const V_EXIT = helixV(HELIX_DUR) * 0.85, V_EDGE = 2.0; // rolling friction on the base
 const BASE_DUR = (2 * BZ_LEN) / (V_EXIT + V_EDGE);
 export const T_HOP = T_BASE + BASE_DUR;
 const HOP_DUR = 0.24;
