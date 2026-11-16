@@ -73,7 +73,10 @@ const SPIN = (() => {
 })();
 const spinAt = (t: number) => SPIN[Math.min(SPIN.length - 1, Math.round((t / DURATION) * (SPIN.length - 1)))];
 
-const Studio: React.FC = () => {
+// camera: high, looking down into the tray; a slow swing (±11°) and rise/fall, one full cycle per loop = seamless
+const LOOK = new THREE.Vector3(0.12, 2.1, 0.25);
+const REL = new THREE.Vector3(3.1, 7.5, 6.05);
+const Studio: React.FC<{ t: number }> = ({ t }) => {
   const { gl, scene, camera } = useThree();
   useMemo(() => {
     gl.toneMapping = THREE.ACESFilmicToneMapping;
@@ -85,9 +88,11 @@ const Studio: React.FC = () => {
     scene.environmentIntensity = 0.55;
   }, [gl, scene]);
   useLayoutEffect(() => {
-    camera.position.set(3.22, 9.6, 6.3); // high: the viewer looks down into the tray and its hole
-    camera.lookAt(0.12, 2.1, 0.25);
-  }, [camera]);
+    const ph = (t / DURATION) * Math.PI * 2;
+    const rel = REL.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(11) * Math.sin(ph));
+    camera.position.copy(LOOK).add(rel).add(new THREE.Vector3(0, 0.35 * Math.cos(ph), 0));
+    camera.lookAt(LOOK);
+  }, [camera, t]);
   return null;
 };
 
@@ -225,7 +230,7 @@ export const VZMachine: React.FC<{ silent?: boolean; at?: number }> = ({ silent,
   return (
     <AbsoluteFill style={{ background: BG }}>
       <ThreeCanvas width={width} height={height} shadows camera={{ fov: 31, near: 0.1, far: 60 }} gl={{ antialias: true }}>
-        <Studio />
+        <Studio t={t} />
         <hemisphereLight args={["#ffffff", "#8a8299", 0.6]} />
         <spotLight castShadow position={[-3.5, 9, 4.5]} angle={0.45} penumbra={0.9} intensity={110} decay={2} color="#fff3e6" shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-radius={6} />
         <directionalLight position={[5, 3, -4]} intensity={0.9} color="#b9a4ff" />
