@@ -140,7 +140,7 @@ const Funnel: React.FC = () => (
       <torusGeometry args={[(FUNNEL.rIn + FUNNEL.rOut) / 2, 0.028, 16, 160]} />
       <Glossy c={GOLD} metal={1} rough={0.2} />
     </mesh>
-    <mesh geometry={DISH_GEO} receiveShadow>
+    <mesh geometry={DISH_GEO} castShadow receiveShadow>
       <meshPhysicalMaterial color={PEARL} roughness={0.32} clearcoat={0.8} clearcoatRoughness={0.15} side={THREE.DoubleSide} />
     </mesh>
     <mesh position={[0, surfY(RING_R) + 0.004, 0]} rotation={[Math.PI / 2, 0, 0]}>
@@ -152,7 +152,7 @@ const Funnel: React.FC = () => (
       <cylinderGeometry args={[FUNNEL.hole, FUNNEL.hole, THROAT_H, 48, 1, true]} />
       <meshStandardMaterial color="#2c2142" roughness={0.6} side={THREE.DoubleSide} />
     </mesh>
-    <mesh position={[0, FUNNEL.yBot + 0.002, 0]} rotation={[Math.PI / 2, 0, 0]}>
+    <mesh position={[0, FUNNEL.yBot + 0.002, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
       <ringGeometry args={[FUNNEL.hole, FUNNEL.rIn + 0.05, 96]} />
       <Glossy c={PURPLE} rough={0.35} />
     </mesh>

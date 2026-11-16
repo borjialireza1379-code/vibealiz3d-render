@@ -128,7 +128,7 @@ export const railPoint = (s: number, which: -1 | 1): V3 => {
 };
 
 // ties with candy note-lights: from the start of the bend to the tip of the ramp
-export const S_LIGHTS0 = SEGS[0].len + 0.18;
+export const S_LIGHTS0 = SEGS[0].len + 0.32;
 export const LIGHTS = 16;
 export const lightS = (i: number) => S_LIGHTS0 + ((i + 0.5) / LIGHTS) * (TRACK_LEN - S_LIGHTS0 - 0.08);
 
