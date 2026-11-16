@@ -1,10 +1,10 @@
 {
- "comp": "V43-Silent",
- "audio": "public/v43/mix-norm.wav",
- "name": "v43-final",
- "at": "2026-11-14T16:53:39.349Z",
+ "comp": "VZMACHINE-Silent",
+ "audio": "public/vzmachine/machine.wav",
+ "name": "vzmachine-final",
+ "at": "2026-11-16T01:45:10.230Z",
  "gl": "swangle",
  "chunks": 20,
- "crf": 24,
+ "crf": 23,
  "tune": "animation"
 }
