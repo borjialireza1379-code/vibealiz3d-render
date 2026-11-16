@@ -4,7 +4,7 @@
 // studio. The ball's spin is integrated from its path and eased back to the start orientation so the loop is seamless.
 import { ThreeCanvas } from "@remotion/three";
 import { useThree } from "@react-three/fiber";
-import React, { useLayoutEffect, useMemo } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { AbsoluteFill, Html5Audio, continueRender, delayRender, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -17,11 +17,68 @@ export const MACHINE_FPS = FPS;
 export const MACHINE_FRAMES = FRAMES;
 
 const FONT = "Fredoka";
-const fh = delayRender("machine font");
-new FontFace(FONT, `url('${staticFile("fonts/Fredoka.ttf")}')`, { weight: "300 700" }).load().then((f) => {
+const FONT_READY = new FontFace(FONT, `url('${staticFile("fonts/Fredoka.ttf")}')`, { weight: "300 700" }).load().then((f) => {
   document.fonts.add(f);
-  continueRender(fh);
 });
+
+// ─── the engraved name on the base wall: a height map of the text → normal map (lit edges), darker + matte inside
+const ENG_W = 4096, ENG_H = 192;
+const buildEngraving = () => {
+  const h = document.createElement("canvas");
+  h.width = ENG_W;
+  h.height = ENG_H;
+  const g = h.getContext("2d")!;
+  g.fillStyle = "#fff";
+  g.fillRect(0, 0, ENG_W, ENG_H);
+  g.filter = "blur(2.2px)"; // soft chamfer on the cut edges
+  g.fillStyle = "#000";
+  g.font = `700 140px ${FONT}`;
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  (g as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "10px";
+  g.fillText("Vibealiz3D", ENG_W / 2, ENG_H / 2 + 6);
+  const src = g.getImageData(0, 0, ENG_W, ENG_H).data;
+  const height = (x: number, y: number) => src[(Math.min(ENG_H - 1, Math.max(0, y)) * ENG_W + ((x + ENG_W) % ENG_W)) * 4] / 255;
+  const mk = () => {
+    const c = document.createElement("canvas");
+    c.width = ENG_W;
+    c.height = ENG_H;
+    return c;
+  };
+  const nC = mk(), cC = mk(), rC = mk();
+  const nD = nC.getContext("2d")!.createImageData(ENG_W, ENG_H);
+  const cD = cC.getContext("2d")!.createImageData(ENG_W, ENG_H);
+  const rD = rC.getContext("2d")!.createImageData(ENG_W, ENG_H);
+  const S = 3.2; // depth of the cut in the normal map
+  for (let y = 0; y < ENG_H; y++)
+    for (let x = 0; x < ENG_W; x++) {
+      const i = (y * ENG_W + x) * 4;
+      const gx = height(x + 1, y) - height(x - 1, y);
+      const gy = height(x, y + 1) - height(x, y - 1);
+      let nx = -gx * S, ny = gy * S; // canvas y points down, texture v points up
+      const l = Math.hypot(nx, ny, 1);
+      nx /= l;
+      ny /= l;
+      nD.data[i] = (nx * 0.5 + 0.5) * 255;
+      nD.data[i + 1] = (ny * 0.5 + 0.5) * 255;
+      nD.data[i + 2] = (0.5 / l + 0.5) * 255;
+      nD.data[i + 3] = 255;
+      const hv = height(x, y);
+      cD.data[i] = cD.data[i + 1] = cD.data[i + 2] = (0.62 + 0.38 * hv) * 255; // the floor of the letters is darker
+      cD.data[i + 3] = 255;
+      rD.data[i + 1] = (0.28 + 0.4 * (1 - hv)) * 255; // glossy surface, satin inside the letters (green = roughness)
+      rD.data[i + 3] = 255;
+    }
+  const tex = (c: HTMLCanvasElement, d: ImageData, srgb: boolean) => {
+    c.getContext("2d")!.putImageData(d, 0, 0);
+    const t = new THREE.CanvasTexture(c);
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    return t;
+  };
+  return { normal: tex(nC, nD, false), color: tex(cC, cD, true), rough: tex(rC, rD, false) };
+};
+const ENGRAVING = FONT_READY.then(buildEngraving);
 
 const BG = "#9c98a8";
 const PURPLE = "#8b4dff";
@@ -128,6 +185,26 @@ const CONTACT = (() => {
   return new THREE.CanvasTexture(cv);
 })();
 
+// the wall of the base with the engraved name, centred on the camera's side (camera azimuth ≈ 63° → θ = 90° − 63°)
+const BaseWall: React.FC = () => {
+  const [tex, setTex] = useState<Awaited<typeof ENGRAVING> | null>(null);
+  const [handle] = useState(() => delayRender("engraving"));
+  useEffect(() => {
+    ENGRAVING.then((t) => {
+      setTex(t);
+      continueRender(handle);
+    });
+  }, [handle]);
+  if (!tex) return null;
+  const thetaFront = THREE.MathUtils.degToRad(90 - 63);
+  return (
+    <mesh position={[0, BASE_H / 2, 0]} receiveShadow>
+      <cylinderGeometry args={[BASE_R + 0.051, BASE_R + 0.051, BASE_H, 256, 1, true, thetaFront - Math.PI, Math.PI * 2]} />
+      <meshPhysicalMaterial color={PURPLE} map={tex.color} normalMap={tex.normal} roughness={1} roughnessMap={tex.rough} clearcoat={0.7} clearcoatRoughness={0.1} clearcoatNormalMap={tex.normal} />
+    </mesh>
+  );
+};
+
 const Launcher: React.FC<{ t: number }> = ({ t }) => {
   const d = plateD(t);
   return (
@@ -160,6 +237,7 @@ const Machine: React.FC<{ t: number }> = ({ t }) => (
     <mesh geometry={BASE} castShadow receiveShadow>
       <Glossy c={PURPLE} rough={0.3} />
     </mesh>
+    <BaseWall />
     <mesh position={[0, BASE_H + 0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
       <torusGeometry args={[BASE_R + 0.03, 0.035, 16, 128]} />
       <Glossy c={GOLD} metal={1} rough={0.2} />
@@ -245,7 +323,6 @@ export const VZMachine: React.FC<{ silent?: boolean; at?: number }> = ({ silent,
         <Machine t={t} />
         <Ball t={t} />
       </ThreeCanvas>
-      <div style={{ position: "absolute", left: 0, right: 0, top: 250, textAlign: "center", fontFamily: FONT, fontWeight: 600, fontSize: 34, color: "#ffffffb0", letterSpacing: 1 }}>@Vibealiz3D</div>
       {!silent && at === undefined && <Html5Audio src={staticFile("vzmachine/machine.wav")} />}
     </AbsoluteFill>
   );
