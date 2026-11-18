@@ -1,8 +1,8 @@
 {
- "comp": "VZDONUT2-Silent",
- "audio": "public/vzdonut2/wave.wav",
- "name": "vzdonut2-pink",
- "at": "2026-11-18T12:12:20.625Z",
+ "comp": "VZSTONE-Silent",
+ "audio": "public/vzstone/stone.wav",
+ "name": "vzstone-loop1",
+ "at": "2026-11-18T13:04:28.441Z",
  "gl": "swangle",
  "chunks": 8,
  "crf": 23,
