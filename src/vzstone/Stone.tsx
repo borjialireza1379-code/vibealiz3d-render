@@ -20,7 +20,6 @@ export const STONE_FRAMES = FRAMES;
 const BG = "#b9c3cf";
 const PURPLE = "#6a2fd6";
 const YELLOW = "#ffc81f";
-const PED = "#2c5a50"; // deep green pedestal
 const R_P = 1.72; // pedestal radius
 const SLOT = 0.016; // slot around the ring in the pedestal top
 const BODY = H_TOP + 0.34; // segment height below its top (always reaches into the pedestal)
@@ -95,29 +94,39 @@ const wallCanvas = () =>
     const m = (n - 0.45) * 0.55 + hash(x, y) * 0.035;
     return [182 - 70 * m, 192 - 70 * m, 205 - 66 * m];
   });
-// deep green painted plaster with brush scratches
-const pedCanvas = () => {
+// black polished marble (Nero Marquina-like) with gold veins: colour canvas + an "ORM" canvas (G = roughness,
+// B = metalness) so the veins are real metallic gold and the black stays glossy
+const pedVein = (x: number, y: number) => {
+  const s = 1 / 1024;
+  const tw = fbm(x * s * 2.2 + 3.3, y * s * 2.2 + 8.1);
+  // low turbulence → long flowing diagonal veins (strong turbulence made closed loops like map contours)
+  const v1 = Math.abs(Math.sin((x * s * 1.1 + y * s * 1.6 + tw * 1.9) * Math.PI * 2));
+  const v2 = Math.abs(Math.sin((x * s * 1.9 - y * s * 0.7 + fbm(x * s * 3 + 2, y * s * 3) * 1.1) * Math.PI * 2));
+  const fade = Math.max(0, Math.min(1, fbm(x * s * 2.0 + 9.4, y * s * 2.0 + 0.3) * 2.2 - 0.5));
+  const fade2 = Math.max(0, Math.min(1, fbm(x * s * 2.5 + 1.4, y * s * 2.5 + 6.6) * 2.4 - 1.05));
+  // main veins: a bright core and a soft glow; a second, finer family where it fades in
+  const core = Math.exp(-v1 * 38) * fade + Math.exp(-v2 * 110) * fade2 * 0.6;
+  const halo = Math.exp(-v1 * 9) * fade * 0.4 + Math.exp(-v2 * 28) * fade2 * 0.15;
+  return { gold: Math.min(1, core * 1.5), halo: Math.min(1, halo) };
+};
+const pedCanvases = () => {
   const N = 1024;
-  const base = new THREE.Color(PED).convertLinearToSRGB(); // three.js colours are linear; the canvas wants sRGB
-  const cv = canvasTex(N, N, (x, y) => {
+  const col = canvasTex(N, N, (x, y) => {
     const s = 1 / N;
-    const n = fbm(x * s * 8, y * s * 3) * 0.6 + fbm(x * s * 40, y * s * 12) * 0.4;
-    const k = 0.82 + (n - 0.5) * 0.35;
-    return [base.r * 255 * k + 8, base.g * 255 * k + 8, base.b * 255 * k + 8].map((v) => Math.max(0, Math.min(255, v))) as [number, number, number];
+    const cloud = fbm(x * s * 4, y * s * 4) * 0.7 + fbm(x * s * 25, y * s * 25, 3) * 0.3;
+    const { gold, halo } = pedVein(x, y);
+    const k = Math.max(0, cloud - 0.42) * 46; // faint grey clouding in the black
+    const base = [13 + k, 13 + k, 15 + k * 1.05];
+    const g = [228, 178, 82]; // gold
+    const m = Math.min(1, gold + halo * 0.5);
+    return [base[0] + (g[0] - base[0]) * m, base[1] + (g[1] - base[1]) * m, base[2] + (g[2] - base[2]) * m];
   });
-  const g = cv.getContext("2d")!;
-  let seed = 3;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  for (let i = 0; i < 900; i++) {
-    const x = rnd() * N, y = rnd() * N, len = 20 + rnd() * 140, a = (rnd() - 0.5) * 0.9;
-    g.strokeStyle = rnd() < 0.6 ? `rgba(160,200,185,${0.04 + rnd() * 0.08})` : `rgba(10,30,25,${0.05 + rnd() * 0.08})`;
-    g.lineWidth = 0.6 + rnd() * 1.6;
-    g.beginPath();
-    g.moveTo(x, y);
-    g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
-    g.stroke();
-  }
-  return cv;
+  const orm = canvasTex(N, N, (x, y) => {
+    const { gold, halo } = pedVein(x, y);
+    const metal = Math.min(1, gold * 1.3 + halo * 0.4);
+    return [255, 255 * (0.13 + 0.17 * metal), 255 * metal];
+  });
+  return { col, orm };
 };
 // ball: purple north half, yellow south half, a thin dark seam on the equator, faint grain
 const ballCanvas = () => {
@@ -232,16 +241,17 @@ const Ring: React.FC<{ t: number; mat: THREE.Material }> = ({ t, mat }) => (
 );
 
 const Pedestal: React.FC<{ marble: THREE.Material }> = ({ marble }) => {
-  const mat = useMemo(() => {
-    const t = toTex(pedCanvas());
-    t.repeat.set(5, 2);
-    return new THREE.MeshPhysicalMaterial({ map: t, color: "#ffffff", roughness: 0.55, clearcoat: 0.3, clearcoatRoughness: 0.35 });
-  }, []);
-  const top = useMemo(() => {
-    const t = toTex(pedCanvas());
-    t.repeat.set(1.2, 1.2);
-    return new THREE.MeshPhysicalMaterial({ map: t, roughness: 0.5, clearcoat: 0.35, clearcoatRoughness: 0.3 });
-  }, []);
+  const cvs = useMemo(pedCanvases, []);
+  const blackMarble = (rx: number, ry: number) => {
+    const map = toTex(cvs.col), orm = toTex(cvs.orm, false);
+    for (const t of [map, orm]) t.repeat.set(rx, ry);
+    return new THREE.MeshPhysicalMaterial({
+      map, roughnessMap: orm, metalnessMap: orm, roughness: 1, metalness: 1,
+      clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 1.6,
+    });
+  };
+  const mat = useMemo(() => blackMarble(4, 3), [cvs]);
+  const top = useMemo(() => blackMarble(1.3, 1.3), [cvs]);
   const dark = useMemo(() => new THREE.MeshStandardMaterial({ color: "#0d1412", roughness: 1, side: THREE.DoubleSide }), []);
   return (
     <group>

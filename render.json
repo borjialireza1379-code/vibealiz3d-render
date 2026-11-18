@@ -1,8 +1,8 @@
 {
  "comp": "VZSTONE-Silent",
  "audio": "public/vzstone/stone.wav",
- "name": "vzstone-loop1",
- "at": "2026-11-18T13:04:28.441Z",
+ "name": "vzstone-loop2",
+ "at": "2026-11-18T13:25:08.506Z",
  "gl": "swangle",
  "chunks": 8,
  "crf": 23,
