@@ -19,7 +19,7 @@ export const DONUT_FRAMES = FRAMES;
 const BG = "#2b3b48"; // slate blue
 const FLOOR = "#33475a";
 const SILVER = "#eef0f4"; // mirror-polished ball
-const DONUT_C = "#dde1e7"; // satin (brushed) silver donut, so it reads apart from the mirror ball
+const DONUT_C = "#f7b5c8"; // glossy pastel pink (user, 2026-11-18)
 const BOARD_T = 0.12;
 const WOOD_L: [number, number, number] = [224, 186, 134]; // birch plywood, light and dark grain
 const WOOD_D: [number, number, number] = [168, 120, 72];
@@ -293,7 +293,7 @@ const Donut: React.FC<{ t: number }> = ({ t }) => {
     <group position={[0, PIVOT_Y, 0]} rotation={[0, 0, donutAngle(t)]}>
       <mesh position={[0, -PEND_L, 0]} rotation={[0, Math.PI / 2, 0]} castShadow receiveShadow>
         <torusGeometry args={[DONUT.R, DONUT.a, 48, 128]} />
-        <meshPhysicalMaterial color={DONUT_C} metalness={1} roughness={0.15} clearcoat={0.4} clearcoatRoughness={0.2} envMap={env} envMapIntensity={1} />
+        <meshPhysicalMaterial color={DONUT_C} roughness={0.2} clearcoat={1} clearcoatRoughness={0.06} sheen={0.25} envMap={env} envMapIntensity={0.55} />
       </mesh>
       <mesh position={top} rotation={[0, Math.PI / 2, 0]}>
         <torusGeometry args={[0.03, 0.009, 10, 32]} />
