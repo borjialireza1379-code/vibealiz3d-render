@@ -1,8 +1,8 @@
 {
- "comp": "VZDONUT-Silent",
- "audio": "public/vzdonut/donut.wav",
- "name": "vzdonut-loop2",
- "at": "2026-11-18T11:03:57.850Z",
+ "comp": "VZDONUT2-Silent",
+ "audio": "public/vzdonut2/wave.wav",
+ "name": "vzdonut2-loop1",
+ "at": "2026-11-18T11:52:10.134Z",
  "gl": "swangle",
  "chunks": 8,
  "crf": 23,

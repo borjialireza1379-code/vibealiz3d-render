@@ -1,6 +1,6 @@
 import { Composition } from "remotion";
-import { VZDONUT, VZDONUT_FPS, VZDONUT_FRAMES } from "./vzdonut/Donut";
+import { VZDONUT2, VZDONUT2_FPS, VZDONUT2_FRAMES } from "./vzdonut2/Wave";
 
 export const RemotionRoot: React.FC = () => (
-  <Composition id="VZDONUT-Silent" component={VZDONUT} durationInFrames={VZDONUT_FRAMES} fps={VZDONUT_FPS} width={1080} height={1920} defaultProps={{ silent: true }} />
+  <Composition id="VZDONUT2-Silent" component={VZDONUT2} durationInFrames={VZDONUT2_FRAMES} fps={VZDONUT2_FPS} width={1080} height={1920} defaultProps={{ silent: true }} />
 );
