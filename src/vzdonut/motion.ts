@@ -148,8 +148,8 @@ let DUR = 0;
 }
 /** one period of the ball's motion (s) */
 export const PERIOD = DUR;
-/** the rendered loop holds two ball periods (one donut sway period) */
-export const LOOP_PERIODS = 2;
+/** the rendered loop holds one ball period (the donut swings with the same period) */
+export const LOOP_PERIODS = 1;
 export const FRAMES = Math.round(LOOP_PERIODS * PERIOD * FPS);
 /** time scale so the loop is an exact whole number of frames */
 export const T_SCALE = (LOOP_PERIODS * PERIOD) / (FRAMES / FPS);
@@ -165,23 +165,31 @@ export const ballAt = (tIn: number) => {
   };
 };
 
-// ─── the donut: a torus (hole along x) hung from the ceiling (far above the frame) on two wires that meet at an
-// eyelet on its top; the anchors sit on a line along x, so it can only sway sideways (z). Physical pendulum:
-// T = 2π·√((I/m + l²)/(g·l)), I about an axis parallel to the torus axis: I/m = R² + ¾·a². A long wire sways slowly:
-// its period is two ball periods (so the loop closes), and the sway is small enough that the ball never touches it:
-// at every pass the donut is 0.71·A off centre, the hole leaves 0.095 of room.
-export const DONUT = { R: 0.36, a: 0.125 };
+// ─── the donut: a fat torus (hole along x) whose hole is just bigger than the ball (0.025 of room), hung on two
+// wires that meet at an eyelet on its top and run up out of the frame (the anchors sit just above the top edge, on a
+// line along x, so it can only swing sideways, z). It swings with the ball's period and passes the centre exactly
+// when the ball crosses x = 0, so the ball threads the hole at every pass (user's request: swing more, centred at
+// the pass). Note: a free pendulum this long (4.3) would take ≈ 4.9 s per swing; this one runs at the ball's 3.7 s.
+// Clearance during a pass (donut moving sideways at A·2π/T while the ball crosses): ≥ 0.017, checked in SUMMARY.
+export const DONUT = { R: 0.3, a: 0.135 };
 export const DONUT_Y = BALL_R; // hole centre = ball centre height on the flat
-const kk = DONUT.R * DONUT.R + 0.75 * DONUT.a * DONUT.a;
-const T_SWAY = LOOP_PERIODS * PERIOD;
-const Gp = (G * T_SWAY * T_SWAY) / (4 * Math.PI * Math.PI);
-export const PEND_L = (Gp + Math.sqrt(Gp * Gp - 4 * kk)) / 2; // ceiling pivot → donut centre
-export const PIVOT_Y = DONUT_Y + PEND_L;
-export const SWING_A = 0.07; // sideways amplitude of the donut centre
+export const PIVOT_Y = 4.4; // just above the top of the frame at x = 0 (top edge ≈ 3.86 there)
+export const PEND_L = PIVOT_Y - DONUT_Y;
+export const SWING_A = 0.32; // sideways amplitude of the donut centre
 const theta0 = Math.asin(SWING_A / PEND_L);
 const tPass0 = EVENTS.passes[0]?.t ?? 0;
-/** sway angle (rad, about the x axis through the ceiling pivot); every pass at a quarter-phase (|offset| = 0.71·A) */
-export const donutAngle = (tIn: number) => theta0 * Math.sin((2 * Math.PI * (tIn - tPass0)) / T_SWAY + Math.PI / 4);
+/** swing angle (rad, about the x axis through the anchors): zero at every pass of the ball */
+export const donutAngle = (tIn: number) => theta0 * Math.sin((2 * Math.PI * (tIn - tPass0)) / PERIOD);
+// smallest gap between ball and donut while the ball goes through (ball at x = v·t, donut at z = vd·t)
+const passClearance = (() => {
+  const vd = (SWING_A * 2 * Math.PI) / PERIOD;
+  let worst = 1;
+  for (let t = -0.1; t <= 0.1; t += 1e-4) {
+    const s = V_BOTTOM * t, d = Math.abs(vd * t);
+    worst = Math.min(worst, Math.hypot(s, DONUT.R - d) - DONUT.a - BALL_R);
+  }
+  return worst;
+})();
 
 // summary for the console (node --no-warnings src/vzdonut/motion.ts)
 export const SUMMARY = {
@@ -192,6 +200,7 @@ export const SUMMARY = {
   apexL: +APEX.left.toFixed(2),
   apexR: +APEX.right.toFixed(2),
   pendL: +PEND_L.toFixed(3),
+  passClearance: +passClearance.toFixed(4),
   pivotY: +PIVOT_Y.toFixed(2),
   passes: EVENTS.passes.map((e) => +e.t.toFixed(3)),
   lipsOff: EVENTS.lipsOff.map((e) => e.side + e.t.toFixed(3)),
